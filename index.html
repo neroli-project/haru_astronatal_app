@@ -768,114 +768,137 @@ function getSabianSymbol(signIndex, degree) {
             }
         }
 
-        /* ----------------------------------------------------
-         *  アスペクト自動判定ロジック (0°, 60°, 90°, 120°, 180°)
-         * ---------------------------------------------------- */
-        function getAspectInfo(lon1, lon2) {
-            let diff = Math.abs(lon1 - lon2) % 360;
-            if (diff > 180) diff = 360 - diff;
+   /* ----------------------------------------------------
+ * アスペクト自動判定ロジック (0°, 60°, 90°, 120°, 180°)
+ * ---------------------------------------------------- */
+function getAspectInfo(lon1, lon2) {
+    let diff = Math.abs(lon1 - lon2) % 360;
+    if (diff > 180) diff = 360 - diff;
 
-            const aspects = [
-                { type: 'conjunction', name: '合 (コンジャンクション)', angle: 0, orb: 4.5, symbol: '0°', nature: '統合・共鳴', color: 'bg-pink-500/20 text-pink-300 border-pink-500/40' },
-                { type: 'sextile', name: 'セクスタイル', angle: 60, orb: 3.5, symbol: '60°', nature: '好機・協力', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
-                { type: 'square', name: 'スクエア', angle: 90, orb: 4.0, symbol: '90°', nature: '突破・転換', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
-                { type: 'trine', name: 'トライン', angle: 120, orb: 4.5, symbol: '120°', nature: '調和・発展', color: 'bg-teal-500/20 text-teal-300 border-teal-500/40' },
-                { type: 'opposition', name: 'オポジション', angle: 180, orb: 4.5, symbol: '180°', nature: '対立・覚醒', color: 'bg-purple-500/20 text-purple-300 border-purple-500/40' }
-            ];
+    const aspects = [
+        { type: 'conjunction', name: '合 (コンジャンクション)', angle: 0, orb: 4.5, symbol: '0°', nature: '統合・共鳴', color: 'bg-pink-500/20 text-pink-300 border-pink-500/40' },
+        { type: 'sextile', name: 'セクスタイル', angle: 60, orb: 3.5, symbol: '60°', nature: '好機・協力', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+        { type: 'square', name: 'スクエア', angle: 90, orb: 4.0, symbol: '90°', nature: '突破・転換', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+        { type: 'trine', name: 'トライン', angle: 120, orb: 4.5, symbol: '120°', nature: '調和・発展', color: 'bg-teal-500/20 text-teal-300 border-teal-500/40' },
+        { type: 'opposition', name: 'オポジション', angle: 180, orb: 4.5, symbol: '180°', nature: '対立・覚醒', color: 'bg-purple-500/20 text-purple-300 border-purple-500/40' }
+    ];
 
-            for (const asp of aspects) {
-                const diffFromAspect = Math.abs(diff - asp.angle);
-                if (diffFromAspect <= asp.orb) {
-                    return {
-                        hasAspect: true,
-                        aspect: asp,
-                        exactDiff: diffFromAspect.toFixed(1)
-                    };
-                }
+    for (const asp of aspects) {
+        const diffFromAspect = Math.abs(diff - asp.angle);
+        if (diffFromAspect <= asp.orb) {
+            return {
+                hasAspect: true,
+                aspect: asp,
+                exactDiff: diffFromAspect.toFixed(1)
+            };
+        }
+    }
+
+    return { hasAspect: false };
+}
+
+// ネイタルおよびトランジットにドラゴンヘッド・テイルを含めた年ごとのトランジットアスペクト動的計算機能
+function generateTransitCalendar(birthDate, startYear, durationYears, natalPlanets) {
+    const calendar = [];
+    
+    // トランジットの対象天体（外惑星 ＋ ドラゴンヘッド）
+    // ※ドラゴンテイルはドラゴンヘッドの180度反対として自動計算に組み込みます
+    const transitBodies = [
+        { name: 'Jupiter', label: '木星', keyword: '拡大と幸運' },
+        { name: 'Saturn', label: '土星', keyword: '試練と定着' },
+        { name: 'Uranus', label: '天王星', keyword: '変革とブレイクスルー' },
+        { name: 'Neptune', label: '海王星', keyword: '夢とインスピレーション' },
+        { name: 'Pluto', label: '冥王星', keyword: '根本的変容と再生' },
+        { name: 'Node', label: 'ドラゴンヘッド', keyword: '未来の方向性とご縁' }
+    ];
+
+    for (let i = 0; i < durationYears; i++) {
+        const year = startYear + i;
+        const events = [];
+        const midYearDate = new Date(year, 5, 15, 12, 0, 0);
+
+        // 1. 各年におけるジュピター・サターン・ノードリターン（回帰）判定
+        // Jupiter Return Check
+        const natalJup = natalPlanets.find(p => p.body === 'Jupiter');
+        if (natalJup) {
+            const transJupDeg = getBodyLongitude('Jupiter', midYearDate);
+            const aspInfo = getAspectInfo(transJupDeg, natalJup.totalDeg);
+            if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
+                events.push({
+                    month: '5月〜6月頃',
+                    title: 'ジュピター・リターン (木星回帰)',
+                    type: 'return',
+                    badge: '12年に一度の拡大期',
+                    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                    target: '木星',
+                    desc: '約12年に一度の大きな発展・拡大のタイミング。新しい挑戦や社会的飛躍のチャンスが訪れます。'
+                });
             }
-
-            return { hasAspect: false };
         }
 
-        // 提案された年ごとのリアルなトランジットアスペクト動的計算機能
-        function generateTransitCalendar(birthDate, startYear, durationYears, natalPlanets) {
-            const calendar = [];
-            const transitBodies = [
-                { name: 'Jupiter', label: '木星', keyword: '拡大と幸運' },
-                { name: 'Saturn', label: '土星', keyword: '試練と定着' },
-                { name: 'Uranus', label: '天王星', keyword: '変革とブレイクスルー' },
-                { name: 'Neptune', label: '海王星', keyword: '夢とインスピレーション' },
-                { name: 'Pluto', label: '冥王星', keyword: '根本的変容と再生' }
-            ];
+        // Node Return Check (ドラゴンヘッド回帰)
+        const natalNode = natalPlanets.find(p => p.body === 'Node');
+        if (natalNode) {
+            const transNodeDeg = getBodyLongitude('Node', midYearDate);
+            const aspInfo = getAspectInfo(transNodeDeg, natalNode.totalDeg);
+            if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
+                events.push({
+                    month: '8月〜9月頃',
+                    title: 'ノード・リターン (ドラゴンヘッド回帰)',
+                    type: 'return',
+                    badge: '18.5年に一度の運命転機',
+                    badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+                    target: 'ドラゴンヘッド',
+                    desc: '魂の目的に目覚める約18.5年に一度の節目。キーパーソンとの出会いや新たな使命が始まります。'
+                });
+            }
+        }
 
-            for (let i = 0; i < durationYears; i++) {
-                const year = startYear + i;
-                const events = [];
+        // 2. 年間12ヶ月の各月（毎月初日）でのトランジット × ネイタルのアスペクト自動検出
+        for (let m = 0; m < 12; m++) {
+            const monthDate = new Date(year, m, 1, 12, 0, 0);
+            const monthLabel = `${m + 1}月`;
 
-                // 1. 各年におけるジュピター・サターン・ノードリターン（回帰）判定
-                const midYearDate = new Date(year, 5, 15, 12, 0, 0);
-
-                // Jupiter Return Check
-                const natalJup = natalPlanets.find(p => p.body === 'Jupiter');
-                if (natalJup) {
-                    const transJupDeg = getBodyLongitude('Jupiter', midYearDate);
-                    const aspInfo = getAspectInfo(transJupDeg, natalJup.totalDeg);
-                    if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
-                        events.push({
-                            month: '5月〜6月頃',
-                            title: 'ジュピター・リターン (木星回帰)',
-                            type: 'return',
-                            badge: '12年に一度の拡大期',
-                            badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-                            target: '木星',
-                            desc: '約12年に一度の大きな発展・拡大のタイミング。新しい挑戦や社会的飛躍のチャンスが訪れます。'
-                        });
-                    }
+            transitBodies.forEach(tb => {
+                // トランジット天体の黄経を取得
+                let tDeg = getBodyLongitude(tb.name, monthDate);
+                
+                // 判定用に対象リストを作る（ヘッドなら、その180度反対のテイルも同時に候補にする）
+                const currentTransitPoints = [{ name: tb.name, label: tb.label, keyword: tb.keyword, deg: tDeg }];
+                if (tb.name === 'Node') {
+                    const tailDeg = (tDeg + 180) % 360;
+                    currentTransitPoints.push({ name: 'SouthNode', label: 'ドラゴンテイル', keyword: '過去からの手放しと統合', deg: tailDeg });
                 }
 
-                // Node Return Check
-                const natalNode = natalPlanets.find(p => p.body === 'Node');
-                if (natalNode) {
-                    const transNodeDeg = getBodyLongitude('Node', midYearDate);
-                    const aspInfo = getAspectInfo(transNodeDeg, natalNode.totalDeg);
-                    if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
-                        events.push({
-                            month: '8月〜9月頃',
-                            title: 'ノード・リターン (ドラゴンヘッド回帰)',
-                            type: 'return',
-                            badge: '18.5年に一度の運命転機',
-                            badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-                            target: 'ドラゴンヘッド',
-                            desc: '魂の目的に目覚める約18.5年に一度の節目。キーパーソンとの出会いや新たな使命が始まります。'
-                        });
-                    }
-                }
+                currentTransitPoints.forEach(tp => {
+                    natalPlanets.forEach(np => {
+                        // 【変更点】対象とするネイタル天体に 'Node'（ドラゴンヘッド）を追加
+                        // ※ドラゴンテイルはネイタルのNodeの180度反対としても計算できるようにします
+                        const isTargetNatal = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Node'].includes(np.body);
+                        
+                        if (isTargetNatal) {
+                            // ネイタル側のポイントを作成（Nodeならテイルも算出）
+                            const natalPoints = [{ name: np.body, nameJp: np.name, title: np.title, deg: np.totalDeg }];
+                            if (np.body === 'Node') {
+                                const natalTailDeg = (np.totalDeg + 180) % 360;
+                                natalPoints.push({ name: 'SouthNode', nameJp: 'ドラゴンテイル', title: '過去世・手放し', deg: natalTailDeg });
+                            }
 
-                // 2. 年間12ヶ月の各月（毎月初日）でのトランジット × ネイタルのアスペクト自動検出
-                for (let m = 0; m < 12; m++) {
-                    const monthDate = new Date(year, m, 1, 12, 0, 0);
-                    const monthLabel = `${m + 1}月`;
-
-                    transitBodies.forEach(tb => {
-                        const tDeg = getBodyLongitude(tb.name, monthDate);
-
-                        natalPlanets.forEach(np => {
-                            // 感度の高いネイタル主要天体（太陽、月、水星、金星、火星、木星、土星）
-                            if (['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'].includes(np.body)) {
-                                const aspRes = getAspectInfo(tDeg, np.totalDeg);
+                            natalPoints.forEach(nPt => {
+                                const aspRes = getAspectInfo(tp.deg, nPt.deg);
 
                                 if (aspRes.hasAspect) {
-                                    // 重複イベント（同じ天体・同じアスペクトが隣接月に発生する場合）の過剰登録を抑制
+                                    // 重複イベントの抑制
                                     const isDuplicate = events.some(e =>
                                         e.type === 'outer' &&
-                                        e.tbName === tb.name &&
-                                        e.npBody === np.body &&
+                                        e.tbName === tp.name &&
+                                        e.npBody === nPt.name &&
                                         e.aspType === aspRes.aspect.type &&
                                         (parseInt(e.month) >= m - 1)
                                     );
 
                                     if (!isDuplicate) {
-                                        let descText = `トランジットの${tb.label}（${tb.keyword}）が、あなたのネイタル${np.name}（${np.title}）と${aspRes.aspect.name}を形成。`;
+                                        let descText = `トランジットの${tp.label}（${tp.keyword}）が、あなたのネイタル${nPt.nameJp}（${nPt.title}）と${aspRes.aspect.name}を形成。`;
                                         if (aspRes.aspect.type === 'conjunction' || aspRes.aspect.type === 'trine') {
                                             descText += `大きな追い風となり、ポテンシャルが素直に開花・拡張していきます。`;
                                         } else if (aspRes.aspect.type === 'square' || aspRes.aspect.type === 'opposition') {
@@ -886,41 +909,43 @@ function getSabianSymbol(signIndex, degree) {
 
                                         events.push({
                                             month: monthLabel,
-                                            title: `T${tb.label} × N${np.name} ${aspRes.aspect.name}`,
+                                            title: `T${tp.label} × N${nPt.nameJp} ${aspRes.aspect.name}`,
                                             type: 'outer',
-                                            tbName: tb.name,
-                                            npBody: np.body,
+                                            tbName: tp.name,
+                                            npBody: nPt.name,
                                             aspType: aspRes.aspect.type,
                                             badge: `${aspRes.aspect.symbol} ${aspRes.aspect.nature}`,
                                             badgeColor: aspRes.aspect.color,
-                                            target: `${np.name}（N）`,
+                                            target: `${nPt.nameJp}（N）`,
                                             desc: descText
                                         });
                                     }
                                 }
-                            }
-                        });
+                            });
+                        }
                     });
-                }
-
-                // 該当年に主要アスペクトが検出されなかった場合のフォールバック表示
-                if (events.length === 0) {
-                    events.push({
-                        month: '通年',
-                        title: `${year}年 内部充実と実力蓄積の安定期`,
-                        type: 'outer',
-                        badge: '安定・基盤強化',
-                        badgeColor: 'bg-slate-500/20 text-slate-300 border-slate-500/40',
-                        target: '全体運',
-                        desc: '主要な外惑星のハードアスペクトが少ない安定した年です。基礎力の向上や内面の準備に最適な時期となります。'
-                    });
-                }
-
-                calendar.push({ year, events });
-            }
-
-            return calendar;
+                });
+            });
         }
+
+        // 該当年に主要アスペクトが検出されなかった場合のフォールバック表示
+        if (events.length === 0) {
+            events.push({
+                month: '通年',
+                title: `${year}年 内部充実と実力蓄積の安定期`,
+                type: 'outer',
+                badge: '安定・基盤強化',
+                badgeColor: 'bg-slate-500/20 text-slate-300 border-slate-500/40',
+                target: '全体運',
+                desc: '主要な外惑星のハードアスペクトが少ない安定した年です。基礎力の向上や内面の準備に最適な時期となります。'
+            });
+        }
+
+        calendar.push({ year, events });
+    }
+
+    return calendar;
+}
 
         // 1日1年法（二次進行法）に基づき、指定対象年におけるプログレスデータを算出
         function calculateProgressData(birthDate, targetYear) {
