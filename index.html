@@ -802,7 +802,6 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
     const calendar = [];
     
     // トランジットの対象天体（外惑星 ＋ ドラゴンヘッド）
-    // ※ドラゴンテイルはドラゴンヘッドの180度反対として自動計算に組み込みます
     const transitBodies = [
         { name: 'Jupiter', label: '木星', keyword: '拡大と幸運' },
         { name: 'Saturn', label: '土星', keyword: '試練と定着' },
@@ -818,7 +817,6 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
         const midYearDate = new Date(year, 5, 15, 12, 0, 0);
 
         // 1. 各年におけるジュピター・サターン・ノードリターン（回帰）判定
-        // Jupiter Return Check
         const natalJup = natalPlanets.find(p => p.body === 'Jupiter');
         if (natalJup) {
             const transJupDeg = getBodyLongitude('Jupiter', midYearDate);
@@ -831,12 +829,12 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                     badge: '12年に一度の拡大期',
                     badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
                     target: '木星',
-                    desc: '約12年に一度の大きな発展・拡大のタイミング。新しい挑戦や社会的飛躍のチャンスが訪れます。'
+                    desc: '約12年に一度の大きな発展・拡大のタイミング。新しい挑戦や社会的飛躍のチャンスが訪れます。',
+                    orb: aspInfo.orbError
                 });
             }
         }
 
-        // Node Return Check (ドラゴンヘッド回帰)
         const natalNode = natalPlanets.find(p => p.body === 'Node');
         if (natalNode) {
             const transNodeDeg = getBodyLongitude('Node', midYearDate);
@@ -849,7 +847,8 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                     badge: '18.5年に一度の運命転機',
                     badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
                     target: 'ドラゴンヘッド',
-                    desc: '魂の目的に目覚める約18.5年に一度の節目。キーパーソンとの出会いや新たな使命が始まります。'
+                    desc: '魂の目的に目覚める約18.5年に一度の節目。キーパーソンとの出会いや新たな使命が始まります。',
+                    orb: aspInfo.orbError
                 });
             }
         }
@@ -857,13 +856,11 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
         // 2. 年間12ヶ月の各月（毎月初日）でのトランジット × ネイタルのアスペクト自動検出
         for (let m = 0; m < 12; m++) {
             const monthDate = new Date(year, m, 1, 12, 0, 0);
-            const monthLabel = `${m + 1}月`;
+            const monthLabel = `${m + 1}月頃`;
 
             transitBodies.forEach(tb => {
-                // トランジット天体の黄経を取得
                 let tDeg = getBodyLongitude(tb.name, monthDate);
                 
-                // 判定用に対象リストを作る（ヘッドなら、その180度反対のテイルも同時に候補にする）
                 const currentTransitPoints = [{ name: tb.name, label: tb.label, keyword: tb.keyword, deg: tDeg }];
                 if (tb.name === 'Node') {
                     const tailDeg = (tDeg + 180) % 360;
@@ -872,12 +869,9 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
 
                 currentTransitPoints.forEach(tp => {
                     natalPlanets.forEach(np => {
-                        // 【変更点】対象とするネイタル天体に 'Node'（ドラゴンヘッド）を追加
-                        // ※ドラゴンテイルはネイタルのNodeの180度反対としても計算できるようにします
                         const isTargetNatal = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Node'].includes(np.body);
                         
                         if (isTargetNatal) {
-                            // ネイタル側のポイントを作成（Nodeならテイルも算出）
                             const natalPoints = [{ name: np.body, nameJp: np.name, title: np.title, deg: np.totalDeg }];
                             if (np.body === 'Node') {
                                 const natalTailDeg = (np.totalDeg + 180) % 360;
@@ -888,16 +882,15 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                                 const aspRes = getAspectInfo(tp.deg, nPt.deg);
 
                                 if (aspRes.hasAspect) {
-                                    // 重複イベントの抑制
-                                    const isDuplicate = events.some(e =>
+                                    // すでに同じ天体ペア＆同じアスペクトが登録されているかチェック
+                                    const existingIndex = events.findIndex(e =>
                                         e.type === 'outer' &&
                                         e.tbName === tp.name &&
                                         e.npBody === nPt.name &&
-                                        e.aspType === aspRes.aspect.type &&
-                                        (parseInt(e.month) >= m - 1)
+                                        e.aspType === aspRes.aspect.type
                                     );
 
-                                    if (!isDuplicate) {
+                                    if (existingIndex === -1) {
                                         let descText = `トランジットの${tp.label}（${tp.keyword}）が、あなたのネイタル${nPt.nameJp}（${nPt.title}）と${aspRes.aspect.name}を形成。`;
                                         if (aspRes.aspect.type === 'conjunction' || aspRes.aspect.type === 'trine') {
                                             descText += `大きな追い風となり、ポテンシャルが素直に開花・拡張していきます。`;
@@ -917,8 +910,15 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                                             badge: `${aspRes.aspect.symbol} ${aspRes.aspect.nature}`,
                                             badgeColor: aspRes.aspect.color,
                                             target: `${nPt.nameJp}（N）`,
-                                            desc: descText
+                                            desc: descText,
+                                            orb: aspRes.orbError
                                         });
+                                    } else {
+                                        // すでに存在する場合は、よりオーブ（誤差）が小さい（より正確なピタリ賞の）月に更新！
+                                        if (aspRes.orbError < events[existingIndex].orb) {
+                                            events[existingIndex].month = monthLabel;
+                                            events[existingIndex].orb = aspRes.orbError;
+                                        }
                                     }
                                 }
                             });
@@ -937,7 +937,8 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 badge: '安定・基盤強化',
                 badgeColor: 'bg-slate-500/20 text-slate-300 border-slate-500/40',
                 target: '全体運',
-                desc: '主要な外惑星のハードアスペクトが少ない安定した年です。基礎力の向上や内面の準備に最適な時期となります。'
+                desc: '主要な外惑星のハードアスペクトが少ない安定した年です。基礎力の向上や内面の準備に最適な時期となります。',
+                orb: 0
             });
         }
 
@@ -946,7 +947,6 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
 
     return calendar;
 }
-
         // 1日1年法（二次進行法）に基づき、指定対象年におけるプログレスデータを算出
         function calculateProgressData(birthDate, targetYear) {
             const birthYear = birthDate.getFullYear();
@@ -1005,16 +1005,17 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 const degMin = `${Math.floor(signDegree)}°${Math.floor((signDegree % 1) * 60).toString().padStart(2, '0')}'`;
                 const sabian = getSabianSymbol(signIndex, signDegree);
 
-                return {
-                    ...def,
-                    sign: ZODIAC_NAMES[signIndex],
-                    symbol: ZODIAC_SYMBOLS[signIndex],
-                    totalDeg,
-                    signDegree,
-                    degMin,
-                    sabian,
-                    desc: `「${ZODIAC_NAMES[signIndex]}」のエネルギーが、あなたの${def.title}に強い影響を与えています。`
-                };
+               return {
+        ...def,
+        sign: ZODIAC_NAMES[signIndex],
+        symbol: ZODIAC_SYMBOLS[signIndex],
+        totalDeg,
+        signDegree,
+        degMin,
+        sabian,
+        // descの代わりに、サビアンの意味をそのまま持たせる！
+        desc: sabian ? sabian.meaning : ''
+    };
             });
 
             // プログレス計算（指定開始年ベース）
@@ -1044,6 +1045,11 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                     }
                 }
             });
+
+// 🌟 ここを追加！：サマリータブに切り替わった瞬間、最新のテキストを自動で作り直す
+            if (tab === 'summary') {
+                renderSummaryText();
+            }
         }
 
         function renderNatalGridV2() {
@@ -1082,7 +1088,7 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                         <p class="text-slate-300 text-[11px] leading-relaxed mt-1">${p.sabian.meaning}</p>
                     </div>
 
-                    <p class="text-xs text-slate-300 leading-relaxed">${p.desc}</p>
+                
                 `;
                 grid.appendChild(card);
             });
@@ -1177,49 +1183,67 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                         <p class="text-slate-300 text-[11px] leading-relaxed mt-1">${p.sabian.meaning}</p>
                     </div>
 
-                    <p class="text-xs text-slate-300 leading-relaxed">${p.descTemplate}</p>
-                `;
+                                    `;
                 grid.appendChild(card);
             });
         }
-
-        function renderSummaryText() {
+function renderSummaryText() {
             const textarea = document.getElementById('summary-textarea');
             if (!textarea) return;
 
-            let text = `【✨ ${state.name} 様 運命のネイタル・アストロロジー鑑定書 ✨】\n`;
+            let text = `【✨ ${state.name || '相談者'} 様 運命のネイタル・アストロロジー鑑定資料 ✨】\n`;
             text += `生年月日: ${state.dob} ${state.timeUnknown ? '(時間不明)' : state.tob}\n`;
             text += `--------------------------------------------------\n\n`;
 
+            // 1. 本質・ネイタル
             text += `■ 1. あなたの本質を示す主要天体＆サビアンシンボル\n`;
             state.natalData.forEach(p => {
                 text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
-                text += `  サビアン: ${p.sabian.title}\n`;
-                text += `  解説: ${p.desc}\n\n`;
+                text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
+                text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
             });
 
+            // 2. プログレス
             text += `■ 2. プログレス主要天体（${state.startYear}年・満${state.progressData[0]?.age || 0}歳時の内面周期）\n`;
             state.progressData.forEach(p => {
                 text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
-                text += `  サビアン: ${p.sabian.title}\n\n`;
+                text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
+                text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
             });
+
+            // ★ 3. ここに「主要なターニングポイント・厳選ハイライト」を新設！
+            text += `■ 3. 人生の主要なターニングポイント（今後数年の重要ハイライト）\n`;
+            if (state.calendarData && state.calendarData.length > 0) {
+                // 例えば、リターン系やトランスサタニアン、あるいは特定の重要イベントだけを抽出・または全件から要約用のリストを作る
+                state.calendarData.forEach(yearItem => {
+                    if (yearItem.events && yearItem.events.length > 0) {
+                        // 「リターン」や「外惑星（天王星・海王星・冥王星・土星・木星）」が関わるイベントを特にピックアップする例
+                        const importantEvents = yearItem.events.filter(evt => 
+                            evt.type === 'return' || 
+                            evt.title.includes('天王星') || 
+                            evt.title.includes('海王星') || 
+                            evt.title.includes('冥王星') || 
+                            evt.title.includes('土星') ||
+                            evt.title.includes('木星')
+                        );
+
+                        if (importantEvents.length > 0) {
+                            text += `【${yearItem.year}年頃の節目】\n`;
+                            importantEvents.forEach(evt => {
+                                text += `  ・[${evt.month}] ${evt.title}【${evt.badge}】\n`;
+                                text += `    内容: ${evt.desc}\n`;
+                            });
+                            text += `\n`;
+                        }
+                    }
+                });
+            }
+
             text += `--------------------------------------------------\n`;
-            text += `※本鑑定書はアストロロジーダッシュボードより自動出力されました。`;
+            text += `※本データは鑑定レポート作成用のデータサマリーです。`;
 
             textarea.value = text;
-        }
-
-        function copySummaryText() {
-            const textarea = document.getElementById('summary-textarea');
-            if (!textarea) return;
-            textarea.select();
-            document.execCommand('copy');
-            alert('鑑定サマリーをクリップボードにコピーしました！');
-        }
-
-        window.onload = function() {
-            calculateAstrology();
-        };
-    </script>
+        }  
+</script>
 </body>
 </html>
