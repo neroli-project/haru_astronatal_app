@@ -2498,6 +2498,16 @@ function renderSummaryText() {
                 text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
             });
 
+
+ // ★ ここに「ネイタル×ネイタル アスペクト」を追加！
+            if (state.natalAspects && state.natalAspects.length > 0) {
+                text += `■ 1-2. ネイタル天体のアスペクト（才能・内面の葛藤と調和）\n`;
+                state.natalAspects.forEach(asp => {
+                    text += `・${asp.p1Name} ✕ ${asp.p2Name} 【${asp.aspectName} (${asp.symbol})】 (オーブ: ${asp.orb}°)\n`;
+                });
+                text += `\n`;
+            }
+
             // 2. プログレス
             text += `■ 2. プログレス主要天体（${state.startYear}年・満${state.progressData[0]?.age || 0}歳時の内面周期）\n`;
             state.progressData.forEach(p => {
@@ -2506,22 +2516,8 @@ function renderSummaryText() {
                 text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
             });
 
-// 1. 本質・ネイタル
-            text += `■ 1. あなたの本質を示す主要天体＆サビアンシンボル\n`;
-            state.natalData.forEach(p => {
-                text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
-                text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
-                text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
-            });
 
-            // ★ ここに「ネイタル×ネイタル アスペクト」を追加！
-            if (state.natalAspects && state.natalAspects.length > 0) {
-                text += `■ 1-2. ネイタル天体のアスペクト（才能・内面の葛藤と調和）\n`;
-                state.natalAspects.forEach(asp => {
-                    text += `・${asp.p1Name} ✕ ${asp.p2Name} 【${asp.aspectName} (${asp.symbol})】 (オーブ: ${asp.orb}°)\n`;
-                });
-                text += `\n`;
-            }
+           
 
             // ★ 3. ここに「主要なターニングポイント・厳選ハイライト」を新設！
             text += `■ 3. 人生の主要なターニングポイント（今後数年の重要ハイライト）\n`;
