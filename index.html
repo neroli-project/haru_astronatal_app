@@ -1938,7 +1938,7 @@ function getAspectInfo(lon1, lon2) {
     return { hasAspect: false };
 }
 
-// ネイタルおよびトランジットにドラゴンヘッド・テイルを含めた年ごとのトランジットアスペクト動的計算機能
+// ネイタルおよびトランジットにドラゴンヘッド・テイルを含めた年ごとのトランジットアスペクト動的計算機能（期間表示対応版）
 function generateTransitCalendar(birthDate, startYear, durationYears, natalPlanets) {
     const calendar = [];
     
@@ -1954,7 +1954,7 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
 
     for (let i = 0; i < durationYears; i++) {
         const year = startYear + i;
-        const events = [];
+        const rawEvents = []; // 各月の生ヒットを一時保存
         const midYearDate = new Date(year, 5, 15, 12, 0, 0);
 
         // 1. 各年におけるジュピター・サターン・ノードリターン（回帰）判定
@@ -1963,7 +1963,8 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             const transJupDeg = getBodyLongitude('Jupiter', midYearDate);
             const aspInfo = getAspectInfo(transJupDeg, natalJup.totalDeg);
             if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
-                events.push({
+                rawEvents.push({
+                    monthNum: 5, // 6月頃中心
                     month: '5月〜6月頃',
                     title: 'ジュピター・リターン (木星回帰)',
                     type: 'return',
@@ -1971,7 +1972,10 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                     badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
                     target: '木星',
                     desc: '約12年に一度の大きな発展・拡大のタイミング。新しい挑戦や社会的飛躍のチャンスが訪れます。',
-                    orb: aspInfo.orbError
+                    orb: aspInfo.exactDiff,
+                    tbName: 'Jupiter_Return',
+                    npBody: 'Jupiter',
+                    aspType: 'conjunction'
                 });
             }
         }
@@ -1981,7 +1985,8 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             const transNodeDeg = getBodyLongitude('Node', midYearDate);
             const aspInfo = getAspectInfo(transNodeDeg, natalNode.totalDeg);
             if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
-                events.push({
+                rawEvents.push({
+                    monthNum: 8, // 9月頃中心
                     month: '8月〜9月頃',
                     title: 'ノード・リターン (ドラゴンヘッド回帰)',
                     type: 'return',
@@ -1989,7 +1994,10 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                     badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
                     target: 'ドラゴンヘッド',
                     desc: '魂の目的に目覚める約18.5年に一度の節目。キーパーソンとの出会いや新たな使命が始まります。',
-                    orb: aspInfo.orbError
+                    orb: aspInfo.exactDiff,
+                    tbName: 'Node_Return',
+                    npBody: 'Node',
+                    aspType: 'conjunction'
                 });
             }
         }
@@ -1997,7 +2005,6 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
         // 2. 年間12ヶ月の各月（毎月初日）でのトランジット × ネイタルのアスペクト自動検出
         for (let m = 0; m < 12; m++) {
             const monthDate = new Date(year, m, 1, 12, 0, 0);
-            const monthLabel = `${m + 1}月頃`;
 
             transitBodies.forEach(tb => {
                 let tDeg = getBodyLongitude(tb.name, monthDate);
@@ -2023,48 +2030,30 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                                 const aspRes = getAspectInfo(tp.deg, nPt.deg);
 
                                 if (aspRes.hasAspect) {
-                                    const existingIndex = events.findIndex(e =>
-                                        e.type === 'outer' &&
-                                        e.tbName === tp.name &&
-                                        e.npBody === nPt.name &&
-                                        e.aspType === aspRes.aspect.type
-                                    );
-
-                                    // ★ ここで作成したアスペクト別の辞書（TRANSIT_MEANINGS）から解説文を自動取得！
+                                    // 辞書（TRANSIT_MEANINGS）から解説文を取得
                                     let descText = "";
                                     if (typeof TRANSIT_MEANINGS !== 'undefined' &&
                                         TRANSIT_MEANINGS[nPt.nameJp] &&
                                         TRANSIT_MEANINGS[nPt.nameJp][tp.label] &&
                                         TRANSIT_MEANINGS[nPt.nameJp][tp.label][aspRes.aspect.type]) {
-                                        
-                                        // 辞書から個別・詳細な解説文をゲット！
                                         descText = TRANSIT_MEANINGS[nPt.nameJp][tp.label][aspRes.aspect.type];
                                     } else {
-                                        // 万が一辞書にない場合のフォールバック文章
                                         descText = `トランジットの${tp.label}（${tp.keyword}）が、あなたのネイタル${nPt.nameJp}（${nPt.title}）と${aspRes.aspect.name}を形成。それぞれのテーマに向き合う大切な時期です。`;
                                     }
 
-                                    if (existingIndex === -1) {
-                                        events.push({
-                                            month: monthLabel,
-                                            title: `T${tp.label} × N${nPt.nameJp} ${aspRes.aspect.name}`,
-                                            type: 'outer',
-                                            tbName: tp.name,
-                                            npBody: nPt.name,
-                                            aspType: aspRes.aspect.type,
-                                            badge: `${aspRes.aspect.symbol} ${aspRes.aspect.nature}`,
-                                            badgeColor: aspRes.aspect.color,
-                                            target: `${nPt.nameJp}（N）`,
-                                            desc: descText,
-                                            orb: aspRes.orbError
-                                        });
-                                    } else {
-                                        // すでに存在する場合は、よりオーブ（誤差）が小さい月に更新
-                                        if (aspRes.orbError < events[existingIndex].orb) {
-                                            events[existingIndex].month = monthLabel;
-                                            events[existingIndex].orb = aspRes.orbError;
-                                        }
-                                    }
+                                    rawEvents.push({
+                                        monthNum: m,
+                                        tbName: tp.name,
+                                        npBody: nPt.name,
+                                        npNameJp: nPt.nameJp,
+                                        aspType: aspRes.aspect.type,
+                                        tpLabel: tp.label,
+                                        badge: `${aspRes.aspect.symbol} ${aspRes.aspect.nature}`,
+                                        badgeColor: aspRes.aspect.color,
+                                        target: `${nPt.nameJp}（N）`,
+                                        desc: descText,
+                                        orb: parseFloat(aspRes.exactDiff)
+                                    });
                                 }
                             });
                         }
@@ -2073,9 +2062,83 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             });
         }
 
-        // 該当年に主要アスペクトが検出されなかった場合のフォールバック表示
-        if (events.length === 0) {
-            events.push({
+        // 3. ★ 同じアスペクトの連続をまとめる処理（〇月頃〜〇月頃へ変換）
+        const mergedEvents = [];
+        const groupMap = {};
+
+        rawEvents.forEach(ev => {
+            // リターン系はそのまま個別扱いにするためキーを分ける
+            const groupKey = ev.type === 'return' ? `return_${ev.title}_${ev.monthNum}` : `${ev.tbName}_${ev.npBody}_${ev.aspType}`;
+            if (!groupMap[groupKey]) {
+                groupMap[groupKey] = [];
+            }
+            groupMap[groupKey].push(ev);
+        });
+
+        Object.keys(groupMap).forEach(groupKey => {
+            const groupItems = groupMap[groupKey];
+            
+            // リターン系イベントの場合
+            if (groupItems[0].type === 'return') {
+                const sample = groupItems[0];
+                mergedEvents.push({
+                    month: sample.month,
+                    title: sample.title,
+                    type: sample.type,
+                    badge: sample.badge,
+                    badgeColor: sample.badgeColor,
+                    target: sample.target,
+                    desc: sample.desc,
+                    orb: sample.orb,
+                    sortMonth: sample.monthNum
+                });
+                return;
+            }
+
+            // 通常の外惑星アスペクトの期間まとめ処理
+            groupItems.sort((a, b) => a.monthNum - b.monthNum);
+            const months = groupItems.map(e => e.monthNum);
+            
+            const ranges = [];
+            let start = months[0];
+            let prev = months[0];
+
+            for (let i = 1; i < months.length; i++) {
+                if (months[i] <= prev + 2) { // 2ヶ月程度の空きなら同じ期間とみなす
+                    prev = months[i];
+                } else {
+                    ranges.push({ start, end: prev });
+                    start = months[i];
+                    prev = months[i];
+                }
+            }
+            ranges.push({ start, end: prev });
+
+            ranges.forEach(range => {
+                const sample = groupItems.find(e => e.monthNum === range.start);
+                
+                let periodLabel = `${range.start + 1}月頃`;
+                if (range.end > range.start) {
+                    periodLabel = `${range.start + 1}月頃〜${range.end + 1}月頃`;
+                }
+
+                mergedEvents.push({
+                    month: periodLabel,
+                    title: `T${sample.tpLabel} × N${sample.npNameJp}`,
+                    type: 'outer',
+                    badge: sample.badge,
+                    badgeColor: sample.badgeColor,
+                    target: sample.target,
+                    desc: sample.desc,
+                    orb: sample.orb,
+                    sortMonth: range.start
+                });
+            });
+        });
+
+        // 該当年にアスペクトが検出されなかった場合のフォールバック表示
+        if (mergedEvents.length === 0) {
+            mergedEvents.push({
                 month: '通年',
                 title: `${year}年 内部充実と実力蓄積の安定期`,
                 type: 'outer',
@@ -2083,16 +2146,21 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 badgeColor: 'bg-slate-500/20 text-slate-300 border-slate-500/40',
                 target: '全体運',
                 desc: '主要な外惑星のハードアスペクトが少ない安定した年です。基礎力の向上や内面の準備に最適な時期となります。',
-                orb: 0
+                orb: 0,
+                sortMonth: 0
             });
         }
 
-        calendar.push({ year, events });
+        // 発生月順にソート
+        mergedEvents.sort((a, b) => a.sortMonth - b.sortMonth);
+
+        calendar.push({ year, events: mergedEvents });
     }
 
     return calendar;
 }
-        // 1日1年法（二次進行法）に基づき、指定対象年におけるプログレスデータを算出
+      
+  // 1日1年法（二次進行法）に基づき、指定対象年におけるプログレスデータを算出
         function calculateProgressData(birthDate, targetYear) {
             const birthYear = birthDate.getFullYear();
             const age = Math.max(0, targetYear - birthYear);
