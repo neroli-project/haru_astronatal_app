@@ -2490,61 +2490,38 @@ function renderSummaryText() {
             text += `生年月日: ${state.dob} ${state.timeUnknown ? '(時間不明)' : state.tob}\n`;
             text += `--------------------------------------------------\n\n`;
 
-            // 1. 本質・ネイタル（※ここを1回だけに整理！）
+            // 1. 本質・ネイタル
             text += `■ 1. あなたの本質を示す主要天体＆サビアンシンボル\n`;
-            if (state.natalData && state.natalData.length > 0) {
-                state.natalData.forEach(p => {
-                    text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
-                    text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
-                    text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
-                });
-            }
-
-            // 1-2. ネイタルアスペクト（パートナー像＆開花年齢域）
-            if (state.natalAspects && state.natalAspects.length > 0) {
-                text += `■ 1-2. 運命のパートナー像 ＆ 引き寄せアスペクト鑑定\n`;
-                
-                const ageRangeMap = {
-                    '太陽': '太陽期 (25〜35歳頃)', '月': '月期 (0〜7歳頃)',
-                    '水星': '水星期 (7〜15歳頃)', '金星': '金星期 (15〜25歳頃)',
-                    '火星': '火星期 (35〜45歳頃)', '木星': '木星期 (45〜55歳頃)',
-                    '土星': '土星期 (55〜70歳頃)', '天王星': '天王星期 (70〜84歳頃)',
-                    '海王星': '海王星期 (84歳〜)', '冥王星': '冥王星期 (魂の領域)',
-                    'ドラゴンヘッド': '運命の転換期', 'ドラゴンテイル': '過去世・宿縁期'
-                };
-
-                state.natalAspects.forEach(asp => {
-                    // asp のプロパティ名（p1Name / p1 など）に合わせて調整できるように安全に取得
-                    const name1 = asp.p1Name || asp.p1 || '';
-                    const name2 = asp.p2Name || asp.p2 || '';
-                    const age1 = ageRangeMap[name1] || '';
-                    const age2 = ageRangeMap[name2] || '';
-                    const ageBadge = (age1 && age2) ? `${age1} × ${age2}` : (age1 || age2);
-
-                    text += `・[${asp.symbol || ''} ${name1} × ${name2} (${asp.aspectName || ''})]\n`;
-                    if (ageBadge) {
-                        text += `  【開花年齢域】 ${ageBadge}\n`;
-                    }
-                    if (asp.desc) {
-                        text += `  ${asp.desc}\n`;
-                    }
-                    text += `\n`;
-                });
-            }
+            state.natalData.forEach(p => {
+                text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
+                text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
+                text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
+            });
 
             // 2. プログレス
-            text += `--------------------------------------------------\n`;
-            text += `■ 2. プログレス主要天体（${state.startYear}年・満${state.progressData?.[0]?.age || 0}歳時の内面周期）\n`;
-            if (state.progressData && state.progressData.length > 0) {
-                state.progressData.forEach(p => {
-                    text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
-                    text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
-                    text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
-                });
-            }
+            text += `■ 2. プログレス主要天体（${state.startYear}年・満${state.progressData[0]?.age || 0}歳時の内面周期）\n`;
+            state.progressData.forEach(p => {
+                text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
+                text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
+                text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
+            });
 
-            textarea.value = text;
-        }
+// 1. 本質・ネイタル
+            text += `■ 1. あなたの本質を示す主要天体＆サビアンシンボル\n`;
+            state.natalData.forEach(p => {
+                text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
+                text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
+                text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
+            });
+
+            // ★ ここに「ネイタル×ネイタル アスペクト」を追加！
+            if (state.natalAspects && state.natalAspects.length > 0) {
+                text += `■ 1-2. ネイタル天体のアスペクト（才能・内面の葛藤と調和）\n`;
+                state.natalAspects.forEach(asp => {
+                    text += `・${asp.p1Name} ✕ ${asp.p2Name} 【${asp.aspectName} (${asp.symbol})】 (オーブ: ${asp.orb}°)\n`;
+                });
+                text += `\n`;
+            }
 
             // ★ 3. ここに「主要なターニングポイント・厳選ハイライト」を新設！
             text += `■ 3. 人生の主要なターニングポイント（今後数年の重要ハイライト）\n`;
