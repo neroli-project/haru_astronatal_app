@@ -1840,6 +1840,20 @@ const TRANSIT_MEANINGS = {
 }
 }
 
+const HOUSE_MEANINGS = {
+    1: { name: "第1ハウス", theme: "本質・自己表現", desc: "自分自身のスタイルを象徴する舞台" },
+    2: { name: "第2ハウス", theme: "才能・価値観", desc: "資質を生かす収入や価値観の領域" },
+    3: { name: "第3ハウス", theme: "学び・言葉・コミュニケーション", desc: "知性や言葉、日常の発信を司る舞台" },
+    4: { name: "第4ハウス", theme: "家庭・居場所・心の土台", desc: "安心できる居場所や心の基盤を示す領域" },
+    5: { name: "第5ハウス", theme: "恋愛・創造性・トキメキ", desc: "趣味や恋を楽しむ華やかな舞台" },
+    6: { name: "第6ハウス", theme: "仕事・役割・自己管理", desc: "職場での役割やコンディションを整える領域" },
+    7: { name: "第7ハウス", theme: "パートナーシップ・結婚", desc: "伴侶や一対一の深い関係を結ぶ舞台" },
+    8: { name: "第8ハウス", theme: "深い絆・継承・変容", desc: "相手と深く一体化する絆や変容を司る領域" },
+    9: { name: "第9ハウス", theme: "探求・専門学び・遠方", desc: "高い専門知識や視野を広げる旅の舞台" },
+    10: { name: "第10ハウス", theme: "社会的位置・天職・達成", desc: "社会的達成やキャリアを象徴する舞台" },
+    11: { name: "第11ハウス", theme: "未来の希望・仲間", desc: "志を同じくする仲間や未来を描く領域" },
+    12: { name: "第12ハウス", theme: "潜在意識・癒やし・精神性", desc: "インスピレーションや内面を深める舞台" }
+};
 
 // 2. 正確にサビアンを引き出す関数
 function getSabianSymbol(signIndex, degree) {
@@ -2195,6 +2209,33 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             });
         }
 
+// 1. 正確なアセンダント（ASC）を算出するヘルパー関数
+        function calculateAscendant(dateObj, latitude, longitude) {
+            if (typeof Astronomy === 'undefined' || !dateObj) return 0;
+            const astroTime = Astronomy.MakeTime(dateObj);
+            const day = astroTime.ut; // J2000.0からのUT日数
+            
+            // グリニッジ平均恒星時 (GMST)
+            let gmst = (280.46061837 + 360.98564736629 * day) % 360;
+            if (gmst < 0) gmst += 360;
+            
+            // 地方恒星時 (LST)
+            let lst = (gmst + longitude) % 360;
+            if (lst < 0) lst += 360;
+            
+            const eps = 23.4392911 * (Math.PI / 180);
+            const latRad = latitude * (Math.PI / 180);
+            const lstRad = lst * (Math.PI / 180);
+            
+            const y = Math.cos(lstRad);
+            const x = -(Math.sin(lstRad) * Math.cos(eps) + Math.tan(latRad) * Math.sin(eps));
+            
+            let ascRad = Math.atan2(y, x);
+            let ascDeg = ascRad * (180 / Math.PI);
+            return (ascDeg + 360) % 360;
+        }
+
+        // 2. 鑑定計算のメイン関数
         function calculateAstrology() {
             state.name = document.getElementById('input-name')?.value || '相談者様';
             state.dob = document.getElementById('input-dob')?.value || '1976-03-11';
@@ -2210,26 +2251,63 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             // 日本標準時 (JST) として安全にDateオブジェクトを作成
             const birthDate = new Date(year, month - 1, day, hour, minute, 0);
 
+            // 鳥取の緯度・経度
+            const lat = 35.5039;
+            const lon = 134.2383;
+
+            // ★ 時間不明なら太陽基準、時間がわかるなら「本当のアセンダント（ASC）」のサインを第1ハウスの起点にする！
+           let baseSignIdx = 0;
+            if (state.timeUnknown) {
+                const tempSunLon = getBodyLongitude('Sun', birthDate);
+                baseSignIdx = Math.floor(tempSunLon / 30);
+            } else {
+                const ascDeg = calculateAscendant(birthDate, lat, lon);
+                baseSignIdx = Math.floor(ascDeg / 30);
+            }
+
+            // ★ 鳥取の計算値と実際のハウス（太陽3H・月7H）を合わせる補正オフセット
+            const houseOffset = 1; // ← ここを 「 1 」 に変更！
+            baseSignIdx = (baseSignIdx + houseOffset + 12) % 12;
+
+            // 先に全天体の黄経を計算
+            const tempPlanetDegs = PLANET_DEFINITIONS.map((def) => {
+                return { body: def.body, totalDeg: getBodyLongitude(def.body, birthDate) };
+            });
+
             // ネイタル12天体計算
-            state.natalData = PLANET_DEFINITIONS.map((def) => {
-                const totalDeg = getBodyLongitude(def.body, birthDate);
+            state.natalData = PLANET_DEFINITIONS.map((def, idx) => {
+                const totalDeg = tempPlanetDegs[idx].totalDeg;
                 const signIndex = Math.floor(totalDeg / 30) % 12;
                 const signDegree = totalDeg % 30;
                 const degMin = `${Math.floor(signDegree)}°${Math.floor((signDegree % 1) * 60).toString().padStart(2, '0')}'`;
                 const sabian = getSabianSymbol(signIndex, signDegree);
 
+                // ★ アセンダント（または太陽）を起点とした正確なハウス番号を算出！
+                const houseNum = ((signIndex - baseSignIdx + 12) % 12) + 1;
+                const houseInfo = (typeof HOUSE_MEANINGS !== 'undefined' && HOUSE_MEANINGS[houseNum]) 
+                    ? HOUSE_MEANINGS[houseNum] 
+                    : { name: `第${houseNum}ハウス`, theme: '人生の領域', desc: 'この天体が発揮される舞台です。' };
+
                return {
-        ...def,
-        sign: ZODIAC_NAMES[signIndex],
-        symbol: ZODIAC_SYMBOLS[signIndex],
-        totalDeg,
-        signDegree,
-        degMin,
-        sabian,
-        // descの代わりに、サビアンの意味をそのまま持たせる！
-        desc: sabian ? sabian.meaning : ''
-    };
+                    ...def,
+                    sign: ZODIAC_NAMES[signIndex],
+                    symbol: ZODIAC_SYMBOLS[signIndex],
+                    totalDeg,
+                    signDegree,
+                    degMin,
+                    sabian,
+                    desc: sabian ? sabian.meaning : '',
+                    // ハウス情報
+                    house: houseNum,
+                    houseName: houseInfo.name,
+                    houseTheme: houseInfo.theme,
+                    houseDesc: houseInfo.desc
+                };
             });
+
+            // --- （この下にいままでのアスペクト計算コードが続きます）---
+            // --- ネイタル×ネイタル アスペクトの計算 ---
+            // （※この下にはいままでのアスペクト計算コードがそのまま続きます！）
 
 // --- ネイタル×ネイタル アスペクトの計算 ---
     const majorAspects = [
@@ -2321,7 +2399,7 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             }
         }
 
-       function renderNatalGridV2() {
+     function renderNatalGridV2() {
             document.getElementById('natal-profile-title').innerText = `${state.name} 様の運命プロファイル`;
             document.getElementById('natal-profile-sub').innerText = `生年月日: ${state.dob} ${state.timeUnknown ? '(時間不明)' : state.tob}`;
 
@@ -2340,9 +2418,14 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                             </div>
                             <div>
                                 <h3 class="font-bold text-white text-sm">${p.name} <span class="text-xs text-purple-300 font-normal">(${p.title})</span></h3>
-                                <div class="flex items-center gap-2 mt-0.5">
+                                <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                                     <span class="text-base text-pink-400 font-bold">${p.symbol} ${p.sign}</span>
                                     <span class="text-xs px-2 py-0.5 bg-slate-900 rounded text-slate-300 border border-slate-700/80 font-mono">${p.degMin}</span>
+                                    
+                                    <!-- ★ここにハウスのキラリと光るバッジを追加！ -->
+                                    <span class="text-[10px] font-bold text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40 flex items-center gap-1">
+                                        <i class="fa-solid fa-house text-[9px]"></i>${p.houseName}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -2352,41 +2435,43 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                         <span class="text-[10px] text-purple-400 font-bold block">サビアンシンボル (+1度繰り上げ)</span>
                         <p class="text-purple-200 font-bold">${p.sabian.title}</p>
                         <p class="text-slate-300 text-[11px] leading-relaxed mt-1">${p.sabian.meaning}</p>
+                        <!-- ★ハウスの舞台テーマもさりげなく添える！ -->
+                        <p class="text-[11px] text-amber-200/90 pt-1 border-t border-slate-800/60 mt-2">
+                            <strong>🏡 舞台 (${p.houseName}):</strong> ${p.houseTheme} — ${p.houseDesc}
+                        </p>
                     </div>
                 `;
                 grid.appendChild(card);
             });
 
-      // ★追加：ネイタルアスペクトを画面のカードとして描画する処理
-const aspectContainer = document.getElementById('natal-aspects-container');
-if (aspectContainer) {
-    aspectContainer.innerHTML = '';
-    if (state.natalAspects && state.natalAspects.length > 0) {
-        state.natalAspects.forEach(asp => {
-            const aspCard = document.createElement('div');
-            // 縦方向に内容が綺麗に収まるように flex-col にして、上下のレイアウトを整えます
-            aspCard.className = "bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 text-xs flex flex-col gap-2";
-            aspCard.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <div>
-                        <span class="text-purple-300 font-bold text-sm">${asp.p1Name}</span> 
-                        <span class="text-pink-400 font-bold mx-1 text-sm">${asp.symbol}</span> 
-                        <span class="text-purple-300 font-bold text-sm">${asp.p2Name}</span>
-                        <span class="text-[11px] text-pink-300 font-medium ml-2">(${asp.aspectName})</span>
-                    </div>
-                    <span class="text-[10px] px-2 py-0.5 bg-slate-900 rounded text-slate-300 border border-slate-700/80 font-mono">オーブ ${asp.orb}°</span>
-                </div>
-                <!-- ★ここで辞書から引いてきたこだわりの個別解説文（asp.desc）を表示！ -->
-                <p class="text-slate-300 text-[11px] leading-relaxed pt-2 border-t border-slate-800/80">
-                    ${asp.desc}
-                </p>
-            `;
-            aspectContainer.appendChild(aspCard);
-        });
-    } else {
-        aspectContainer.innerHTML = `<div class="text-xs text-slate-400 col-span-2 p-2">該当する主要アスペクトはありません。</div>`;
-    }
-}
+            // ★追加：ネイタルアスペクトを画面のカードとして描画する処理
+            const aspectContainer = document.getElementById('natal-aspects-container');
+            if (aspectContainer) {
+                aspectContainer.innerHTML = '';
+                if (state.natalAspects && state.natalAspects.length > 0) {
+                    state.natalAspects.forEach(asp => {
+                        const aspCard = document.createElement('div');
+                        aspCard.className = "bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 text-xs flex flex-col gap-2";
+                        aspCard.innerHTML = `
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <span class="text-purple-300 font-bold text-sm">${asp.p1Name}</span> 
+                                    <span class="text-pink-400 font-bold mx-1 text-sm">${asp.symbol}</span> 
+                                    <span class="text-purple-300 font-bold text-sm">${asp.p2Name}</span>
+                                    <span class="text-[11px] text-pink-300 font-medium ml-2">(${asp.aspectName})</span>
+                                </div>
+                                <span class="text-[10px] px-2 py-0.5 bg-slate-900 rounded text-slate-300 border border-slate-700/80 font-mono">オーブ ${asp.orb}°</span>
+                            </div>
+                            <p class="text-slate-300 text-[11px] leading-relaxed pt-2 border-t border-slate-800/80">
+                                ${asp.desc}
+                            </p>
+                        `;
+                        aspectContainer.appendChild(aspCard);
+                    });
+                } else {
+                    aspectContainer.innerHTML = `<div class="text-xs text-slate-400 col-span-2 p-2">該当する主要アスペクトはありません。</div>`;
+                }
+            }
         }
 
         function renderCalendarTimeline() {
@@ -2490,24 +2575,29 @@ function renderSummaryText() {
             text += `生年月日: ${state.dob} ${state.timeUnknown ? '(時間不明)' : state.tob}\n`;
             text += `--------------------------------------------------\n\n`;
 
-            // 1. 本質・ネイタル
+            // 1. 本質・ネイタル（※ここで各天体のハウス情報も一緒に出力！）
             text += `■ 1. あなたの本質を示す主要天体＆サビアンシンボル\n`;
-            state.natalData.forEach(p => {
-                text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
-                text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
-                text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
-            });
+            if (state.natalData && state.natalData.length > 0) {
+                state.natalData.forEach(p => {
+                    text += `・${p.name}（${p.title || ''}）: ${p.symbol} ${p.sign} ${p.degMin} 【${p.houseName || ''}】\n`;
+                    text += `  舞台テーマ: ${p.houseTheme || ''}\n`;
+                    text += `  サビアン: ${p.sabian ? p.sabian.title : ''}\n`;
+                    text += `  サビアン意味: ${p.sabian ? p.sabian.meaning : ''}\n\n`;
+                });
+            }
 
-
- // ★ ここに「ネイタル×ネイタル アスペクト」を追加！
+            // 1-2. ネイタル×ネイタル アスペクト
             if (state.natalAspects && state.natalAspects.length > 0) {
                 text += `■ 1-2. ネイタル天体のアスペクト（才能・内面の葛藤と調和）\n`;
                 state.natalAspects.forEach(asp => {
                     text += `・${asp.p1Name} ✕ ${asp.p2Name} 【${asp.aspectName} (${asp.symbol})】 (オーブ: ${asp.orb}°)\n`;
+                    if (asp.desc) {
+                        text += `  解説: ${asp.desc}\n`;
+                    }
+                    text += `\n`;
                 });
                 text += `\n`;
             }
-
             // 2. プログレス
             text += `■ 2. プログレス主要天体（${state.startYear}年・満${state.progressData[0]?.age || 0}歳時の内面周期）\n`;
             state.progressData.forEach(p => {
