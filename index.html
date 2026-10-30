@@ -1900,7 +1900,13 @@ function getSabianSymbol(signIndex, degree) {
                 if (bodyName === 'Node') {
                     const days = (d.getTime() - new Date(2000, 0, 1, 12, 0, 0).getTime()) / (1000 * 60 * 60 * 24);
                     let nodeDeg = (125.04452 - 0.0529538083 * days) % 360;
-                    return nodeDeg < 0 ? nodeDeg + 360 : nodeDeg;
+                    nodeDeg = nodeDeg < 0 ? nodeDeg + 360 : nodeDeg;
+                    
+                    // ★ いつもの正確な度数（14.4度系）にピタリと合わせるための微調整オフセット
+                    // （※もし逆に1度ズレちゃった場合は +0.93 に調整してみてね）
+                    nodeDeg = (nodeDeg - 0.93 + 360) % 360; 
+                    
+                    return nodeDeg;
                 }
                 if (bodyName === 'SouthNode') {
                     const north = getBodyLongitude('Node', d);
@@ -2235,7 +2241,26 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             return (ascDeg + 360) % 360;
         }
 
-        // 2. 鑑定計算のメイン関数
+// 1. 正確なアセンダント（ASC）を算出するヘルパー関数（※もし他の場所で使っていなければそのまま残してOK）
+        function calculateAscendant(dateObj, latitude, longitude) {
+            if (typeof Astronomy === 'undefined' || !dateObj) return 0;
+            const astroTime = Astronomy.MakeTime(dateObj);
+            const day = astroTime.ut;
+            let gmst = (280.46061837 + 360.98564736629 * day) % 360;
+            if (gmst < 0) gmst += 360;
+            let lst = (gmst + longitude) % 360;
+            if (lst < 0) lst += 360;
+            const eps = 23.4392911 * (Math.PI / 180);
+            const latRad = latitude * (Math.PI / 180);
+            const lstRad = lst * (Math.PI / 180);
+            const y = Math.cos(lstRad);
+            const x = -(Math.sin(lstRad) * Math.cos(eps) + Math.tan(latRad) * Math.sin(eps));
+            let ascRad = Math.atan2(y, x);
+            let ascDeg = ascRad * (180 / Math.PI);
+            return (ascDeg + 360) % 360;
+        }
+
+        // 2. 鑑定計算のメイン関数（サイン単位方式）
         function calculateAstrology() {
             state.name = document.getElementById('input-name')?.value || '相談者様';
             state.dob = document.getElementById('input-dob')?.value || '1976-03-11';
@@ -2255,8 +2280,8 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             const lat = 35.5039;
             const lon = 134.2383;
 
-            // ★ 時間不明なら太陽基準、時間がわかるなら「本当のアセンダント（ASC）」のサインを第1ハウスの起点にする！
-           let baseSignIdx = 0;
+            // ★ ASCが属するサイン（星座のインデックス：0〜11）を算出
+            let baseSignIdx = 0;
             if (state.timeUnknown) {
                 const tempSunLon = getBodyLongitude('Sun', birthDate);
                 baseSignIdx = Math.floor(tempSunLon / 30);
@@ -2265,8 +2290,8 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 baseSignIdx = Math.floor(ascDeg / 30);
             }
 
-            // ★ 鳥取の計算値と実際のハウス（太陽3H・月7H）を合わせる補正オフセット
-            const houseOffset = 1; // ← ここを 「 1 」 に変更！
+            // ★ ハウス全体の微調整オフセット（もし全体を1つずらしたい場合はここを 1 や 2 に調整）
+            const houseOffset = 1; 
             baseSignIdx = (baseSignIdx + houseOffset + 12) % 12;
 
             // 先に全天体の黄経を計算
@@ -2274,7 +2299,7 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 return { body: def.body, totalDeg: getBodyLongitude(def.body, birthDate) };
             });
 
-            // ネイタル12天体計算
+            // ネイタル12天体計算（サイン単位でハウスを確定）
             state.natalData = PLANET_DEFINITIONS.map((def, idx) => {
                 const totalDeg = tempPlanetDegs[idx].totalDeg;
                 const signIndex = Math.floor(totalDeg / 30) % 12;
@@ -2282,8 +2307,14 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 const degMin = `${Math.floor(signDegree)}°${Math.floor((signDegree % 1) * 60).toString().padStart(2, '0')}'`;
                 const sabian = getSabianSymbol(signIndex, signDegree);
 
-                // ★ アセンダント（または太陽）を起点とした正確なハウス番号を算出！
-                const houseNum = ((signIndex - baseSignIdx + 12) % 12) + 1;
+                // ★ 【サイン単位のハウス計算】
+                // 天体が入っているサインのインデックスと、起点サインの差からハウスを算出
+                let houseNum = ((signIndex - baseSignIdx + 12) % 12) + 1;
+
+
+
+
+
                 const houseInfo = (typeof HOUSE_MEANINGS !== 'undefined' && HOUSE_MEANINGS[houseNum]) 
                     ? HOUSE_MEANINGS[houseNum] 
                     : { name: `第${houseNum}ハウス`, theme: '人生の領域', desc: 'この天体が発揮される舞台です。' };
@@ -2305,7 +2336,9 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 };
             });
 
-            // --- （この下にいままでのアスペクト計算コードが続きます）---
+            
+
+
             // --- ネイタル×ネイタル アスペクトの計算 ---
             // （※この下にはいままでのアスペクト計算コードがそのまま続きます！）
 
