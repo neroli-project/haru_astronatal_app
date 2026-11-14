@@ -1929,19 +1929,19 @@ function getSabianSymbol(signIndex, degree) {
             }
         }
 
-   /* ----------------------------------------------------
- * アスペクト自動判定ロジック (0°, 60°, 90°, 120°, 180°)
+/* ----------------------------------------------------
+ * アスペクト自動判定ロジック（トランジット用・オーブ2〜3度仕様）
  * ---------------------------------------------------- */
 function getAspectInfo(lon1, lon2) {
     let diff = Math.abs(lon1 - lon2) % 360;
     if (diff > 180) diff = 360 - diff;
 
     const aspects = [
-        { type: 'conjunction', name: '合 (コンジャンクション)', angle: 0, orb: 4.5, symbol: '0°', nature: '統合・共鳴', color: 'bg-pink-500/20 text-pink-300 border-pink-500/40' },
-        { type: 'sextile', name: 'セクスタイル', angle: 60, orb: 3.5, symbol: '60°', nature: '好機・協力', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
-        { type: 'square', name: 'スクエア', angle: 90, orb: 4.0, symbol: '90°', nature: '突破・転換', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
-        { type: 'trine', name: 'トライン', angle: 120, orb: 4.5, symbol: '120°', nature: '調和・発展', color: 'bg-teal-500/20 text-teal-300 border-teal-500/40' },
-        { type: 'opposition', name: 'オポジション', angle: 180, orb: 4.5, symbol: '180°', nature: '対立・覚醒', color: 'bg-purple-500/20 text-purple-300 border-purple-500/40' }
+        { type: 'conjunction', name: '合 (コンジャンクション)', angle: 0, orb: 3.0, symbol: '0°', nature: '統合・共鳴', color: 'bg-pink-500/20 text-pink-300 border-pink-500/40' },
+        { type: 'sextile', name: 'セクスタイル', angle: 60, orb: 2.0, symbol: '60°', nature: '好機・協力', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40' },
+        { type: 'square', name: 'スクエア', angle: 90, orb: 2.5, symbol: '90°', nature: '突破・転換', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
+        { type: 'trine', name: 'トライン', angle: 120, orb: 3.0, symbol: '120°', nature: '調和・発展', color: 'bg-teal-500/20 text-teal-300 border-teal-500/40' },
+        { type: 'opposition', name: 'オポジション', angle: 180, orb: 3.0, symbol: '180°', nature: '対立・覚醒', color: 'bg-purple-500/20 text-purple-300 border-purple-500/40' }
     ];
 
     for (const asp of aspects) {
@@ -2390,16 +2390,17 @@ function getHouseNumberFromCusps(totalDeg, cusps) {
             // --- ネイタル×ネイタル アスペクトの計算 ---
             // （※この下にはいままでのアスペクト計算コードがそのまま続きます！）
 
-// --- ネイタル×ネイタル アスペクトの計算 ---
+// --- ネイタル×ネイタル アスペクトの計算（オーブを4度に狭めた設定） ---
     const majorAspects = [
-        { type: 'conjunction', angle: 0, orb: 8, name: 'コンジャンクション (合)', symbol: '☌', desc: '一体化する強いエネルギー' },
-        { type: 'sextile', angle: 60, orb: 6, name: 'セクスタイル (60度)', symbol: '⚹', desc: '調和的なチャンス・才能' },
-        { type: 'square', angle: 90, orb: 7, name: 'スクエア (90度)', symbol: '□', desc: '挑戦・摩擦から生まれる原動力' },
-        { type: 'trine', angle: 120, orb: 7, name: 'トライン (120度)', symbol: '△', desc: '自然な才能・スムーズな調和' },
-        { type: 'opposition', angle: 180, orb: 8, name: 'オポジション (180度)', symbol: '☍', desc: '客観性・対人関係の緊張とバランス' }
+        { type: 'conjunction', angle: 0, orb: 4.5, name: 'コンジャンクション (合)', symbol: '☌', desc: '一体化する強いエネルギー' },
+        { type: 'sextile', angle: 60, orb: 3.5, name: 'セクスタイル (60度)', symbol: '⚹', desc: '調和的なチャンス・才能' },
+        { type: 'square', angle: 90, orb: 4.0, name: 'スクエア (90度)', symbol: '□', desc: '挑戦・摩擦から生まれる原動力' },
+        { type: 'trine', angle: 120, orb: 4.5, name: 'トライン (120度)', symbol: '△', desc: '自然な才能・スムーズな調和' },
+        { type: 'opposition', angle: 180, orb: 4.5, name: 'オポジション (180度)', symbol: '☍', desc: '客観性・対人関係の緊張とバランス' }
     ];
 
     state.natalAspects = [];
+
     // 天体の組み合わせを全チェック（重複なし）
     for (let i = 0; i < state.natalData.length; i++) {
         for (let j = i + 1; j < state.natalData.length; j++) {
