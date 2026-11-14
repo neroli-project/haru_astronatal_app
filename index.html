@@ -158,7 +158,7 @@
         <!-- ================= RIGHT DISPLAY AREA ================= -->
         <section class="lg:col-span-8 space-y-4">
 
-            <!-- Tab Buttons Header -->
+<!-- Tab Buttons Header -->
             <div class="flex flex-wrap items-center gap-2 bg-slate-900/80 p-1.5 rounded-2xl border border-slate-800">
                 <button id="nav-btn-natal" onclick="switchMainTab('natal')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 flex items-center gap-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md">
                     1. 自分の本質 (12天体+サビアン)
@@ -173,11 +173,11 @@
                     <i class="fa-solid fa-copy"></i> 鑑定サマリー出力
                 </button>
 
-<!-- ★新設：AIプロンプト付き一括コピーボタン -->
-    <button onclick="copyForAIReading()" class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl text-xs font-bold shadow-md hover:opacity-90 flex items-center gap-2 transition-all">
-        <i class="fa-solid fa-wand-magic-sparkles"></i> AI鑑定書用プロンプト付きコピー
-    </button>
-</div>
+                <!-- ★新設：AIプロンプト付き一括コピーボタン -->
+                <button onclick="copyForAIReading()" class="px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl text-xs font-bold shadow-md hover:opacity-90 flex items-center gap-2 transition-all ml-auto">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI鑑定書用プロンプト付きコピー
+                </button>
+            </div>
 
             </div>
 
@@ -2215,57 +2215,113 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             });
         }
 
-// 1. 正確なアセンダント（ASC）を算出するヘルパー関数
-        function calculateAscendant(dateObj, latitude, longitude) {
-            if (typeof Astronomy === 'undefined' || !dateObj) return 0;
-            const astroTime = Astronomy.MakeTime(dateObj);
-            const day = astroTime.ut; // J2000.0からのUT日数
-            
-            // グリニッジ平均恒星時 (GMST)
-            let gmst = (280.46061837 + 360.98564736629 * day) % 360;
-            if (gmst < 0) gmst += 360;
-            
-            // 地方恒星時 (LST)
-            let lst = (gmst + longitude) % 360;
-            if (lst < 0) lst += 360;
-            
-            const eps = 23.4392911 * (Math.PI / 180);
-            const latRad = latitude * (Math.PI / 180);
-            const lstRad = lst * (Math.PI / 180);
-            
-            const y = Math.cos(lstRad);
-            const x = -(Math.sin(lstRad) * Math.cos(eps) + Math.tan(latRad) * Math.sin(eps));
-            
-            let ascRad = Math.atan2(y, x);
-            let ascDeg = ascRad * (180 / Math.PI);
-            return (ascDeg + 360) % 360;
-        }
+// ★ 出生地の緯度・経度マスター
+const CITY_COORDINATES = {
+    'Tokyo':   { lat: 35.6762, lon: 139.6503 },
+    'Osaka':   { lat: 34.6937, lon: 135.5023 },
+    'Tottori': { lat: 35.5039, lon: 134.2383 },
+    'Okayama': { lat: 34.6551, lon: 133.9195 },
+    'Fukuoka': { lat: 33.5902, lon: 130.4017 },
+    'Sapporo': { lat: 43.0618, lon: 141.3545 },
+    'Nagoya':  { lat: 35.1815, lon: 136.9066 }
+};
 
-// 1. 正確なアセンダント（ASC）を算出するヘルパー関数（※もし他の場所で使っていなければそのまま残してOK）
-        function calculateAscendant(dateObj, latitude, longitude) {
-            if (typeof Astronomy === 'undefined' || !dateObj) return 0;
-            const astroTime = Astronomy.MakeTime(dateObj);
-            const day = astroTime.ut;
-            let gmst = (280.46061837 + 360.98564736629 * day) % 360;
-            if (gmst < 0) gmst += 360;
-            let lst = (gmst + longitude) % 360;
-            if (lst < 0) lst += 360;
-            const eps = 23.4392911 * (Math.PI / 180);
-            const latRad = latitude * (Math.PI / 180);
-            const lstRad = lst * (Math.PI / 180);
-            const y = Math.cos(lstRad);
-            const x = -(Math.sin(lstRad) * Math.cos(eps) + Math.tan(latRad) * Math.sin(eps));
-            let ascRad = Math.atan2(y, x);
-            let ascDeg = ascRad * (180 / Math.PI);
-            return (ascDeg + 360) % 360;
-        }
+// ★ プラシーダス方式で1〜12ハウスのカスプ度数（0〜360°）を正確に算出する関数
+function calculatePlacidusCusps(dateObj, latitude, longitude) {
+    if (typeof Astronomy === 'undefined' || !dateObj) return Array.from({length: 12}, (_, i) => i * 30);
 
-        // 2. 鑑定計算のメイン関数（サイン単位方式）
+    const astroTime = Astronomy.MakeTime(dateObj);
+    const day = astroTime.ut; // J2000.0からのUT日数
+
+    // グリニッジ平均恒星時 (GMST) & 地方恒星時 (LST)
+    let gmst = (280.46061837 + 360.98564736629 * day) % 360;
+    if (gmst < 0) gmst += 360;
+    let ramc = (gmst + longitude) % 360; // RAMC (赤経MC)
+    if (ramc < 0) ramc += 360;
+
+    const deg2rad = Math.PI / 180;
+    const rad2deg = 180 / Math.PI;
+    const eps = 23.4392911 * deg2rad; // 黄道傾斜角
+    const latRad = latitude * deg2rad;
+    const ramcRad = ramc * deg2rad;
+
+    // 1. MC (第10ハウスカスプ) の計算
+    let mcRad = Math.atan2(Math.sin(ramcRad), Math.cos(ramcRad) * Math.cos(eps));
+    let mc = (mcRad * rad2deg + 360) % 360;
+
+    // 2. ASC (第1ハウスカスプ) の計算
+    const y = Math.cos(ramcRad);
+    const x = -(Math.sin(ramcRad) * Math.cos(eps) + Math.tan(latRad) * Math.sin(eps));
+    let asc = (Math.atan2(y, x) * rad2deg + 360) % 360;
+
+    // 3. プラシーダス中間カスプ（11, 12, 2, 3ハウス）の反復計算
+    function calcIntermediateCusp(f, isUpper) {
+        let ra = (ramc + f * 90 + 360) % 360;
+        let cuspDeg = ra;
+        for (let iter = 0; iter < 15; iter++) {
+            const raRad = cuspDeg * deg2rad;
+            const decl = Math.asin(Math.sin(eps) * Math.sin(raRad));
+            const ad = Math.asin(Math.tan(latRad) * Math.tan(decl)) * rad2deg;
+            if (isUpper) {
+                cuspDeg = (ramc + f * (90 + ad) + 360) % 360;
+            } else {
+                cuspDeg = (ramc + 180 - f * (90 - ad) + 360) % 360;
+            }
+        }
+        const finalRaRad = cuspDeg * deg2rad;
+        let lon = Math.atan2(Math.sin(finalRaRad), Math.cos(finalRaRad) * Math.cos(eps)) * rad2deg;
+        return (lon + 360) % 360;
+    }
+
+    const h11 = calcIntermediateCusp(1 / 3, true);
+    const h12 = calcIntermediateCusp(2 / 3, true);
+    const h2  = calcIntermediateCusp(2 / 3, false);
+    const h3  = calcIntermediateCusp(1 / 3, false);
+
+    // 対向ハウス（+180度）を含めた全12ハウスのカスプ配列 (index 0 = 第1ハウス)
+    return [
+        asc,                  // 第1ハウス (ASC)
+        h2,                   // 第2ハウス
+        h3,                   // 第3ハウス
+        (mc + 180) % 360,     // 第4ハウス (IC)
+        (h11 + 180) % 360,    // 第5ハウス
+        (h12 + 180) % 360,    // 第6ハウス
+        (asc + 180) % 360,    // 第7ハウス (DSC)
+        (h2 + 180) % 360,     // 第8ハウス
+        (h3 + 180) % 360,     // 第9ハウス
+        mc,                   // 第10ハウス (MC)
+        h11,                  // 第11ハウス
+        h12                   // 第12ハウス
+    ];
+}
+
+// ★ 天体の黄経（totalDeg）がどのハウスのカスプ範囲にあるかを判定する関数
+function getHouseNumberFromCusps(totalDeg, cusps) {
+    for (let i = 0; i < 12; i++) {
+        const currentCusp = cusps[i];
+        const nextCusp = cusps[(i + 1) % 12];
+
+        if (currentCusp < nextCusp) {
+            if (totalDeg >= currentCusp && totalDeg < nextCusp) {
+                return i + 1;
+            }
+        } else {
+            // 360度（魚座〜牡羊座）をまたぐ場合
+            if (totalDeg >= currentCusp || totalDeg < nextCusp) {
+                return i + 1;
+            }
+        }
+    }
+    return 1;
+}       
+
+// 2. 鑑定計算のメイン関数（プラシーダス・カスプ方式）
         function calculateAstrology() {
             state.name = document.getElementById('input-name')?.value || '相談者様';
             state.dob = document.getElementById('input-dob')?.value || '1976-03-11';
             state.tob = document.getElementById('input-tob')?.value || '00:50';
             state.timeUnknown = document.getElementById('input-time-unknown')?.checked || false;
+            state.pob = document.getElementById('input-pob')?.value || 'Tottori';
             state.startYear = parseInt(document.getElementById('input-start-year')?.value) || 2025;
             state.durationYears = parseInt(document.getElementById('input-duration-years')?.value) || 5;
             state.activeYear = state.startYear;
@@ -2276,30 +2332,28 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
             // 日本標準時 (JST) として安全にDateオブジェクトを作成
             const birthDate = new Date(year, month - 1, day, hour, minute, 0);
 
-            // 鳥取の緯度・経度
-            const lat = 35.5039;
-            const lon = 134.2383;
+            // ★ 選択された出生地の緯度・経度を取得
+            const coords = CITY_COORDINATES[state.pob] || CITY_COORDINATES['Tottori'];
+            const lat = coords.lat;
+            const lon = coords.lon;
 
-            // ★ ASCが属するサイン（星座のインデックス：0〜11）を算出
-            let baseSignIdx = 0;
+            // ★ 1〜12ハウスのカスプ度数を計算
+            let houseCusps = [];
             if (state.timeUnknown) {
+                // 時間不明の場合は太陽の正確な度数を第1ハウス起点にしたイコールハウス方式
                 const tempSunLon = getBodyLongitude('Sun', birthDate);
-                baseSignIdx = Math.floor(tempSunLon / 30);
+                houseCusps = Array.from({ length: 12 }, (_, i) => (tempSunLon + i * 30) % 360);
             } else {
-                const ascDeg = calculateAscendant(birthDate, lat, lon);
-                baseSignIdx = Math.floor(ascDeg / 30);
+                // 時間判明時は選択された出生地で正確なプラシーダス・カスプを算出
+                houseCusps = calculatePlacidusCusps(birthDate, lat, lon);
             }
-
-            // ★ ハウス全体の微調整オフセット（もし全体を1つずらしたい場合はここを 1 や 2 に調整）
-            const houseOffset = 1; 
-            baseSignIdx = (baseSignIdx + houseOffset + 12) % 12;
 
             // 先に全天体の黄経を計算
             const tempPlanetDegs = PLANET_DEFINITIONS.map((def) => {
                 return { body: def.body, totalDeg: getBodyLongitude(def.body, birthDate) };
             });
 
-            // ネイタル12天体計算（サイン単位でハウスを確定）
+            // ネイタル12天体計算（カスプ度数で正確にハウスを確定）
             state.natalData = PLANET_DEFINITIONS.map((def, idx) => {
                 const totalDeg = tempPlanetDegs[idx].totalDeg;
                 const signIndex = Math.floor(totalDeg / 30) % 12;
@@ -2307,19 +2361,14 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                 const degMin = `${Math.floor(signDegree)}°${Math.floor((signDegree % 1) * 60).toString().padStart(2, '0')}'`;
                 const sabian = getSabianSymbol(signIndex, signDegree);
 
-                // ★ 【サイン単位のハウス計算】
-                // 天体が入っているサインのインデックスと、起点サインの差からハウスを算出
-                let houseNum = ((signIndex - baseSignIdx + 12) % 12) + 1;
-
-
-
-
+                // ★ 【カスプ方式のハウス計算】
+                const houseNum = getHouseNumberFromCusps(totalDeg, houseCusps);
 
                 const houseInfo = (typeof HOUSE_MEANINGS !== 'undefined' && HOUSE_MEANINGS[houseNum]) 
                     ? HOUSE_MEANINGS[houseNum] 
                     : { name: `第${houseNum}ハウス`, theme: '人生の領域', desc: 'この天体が発揮される舞台です。' };
 
-               return {
+                return {
                     ...def,
                     sign: ZODIAC_NAMES[signIndex],
                     symbol: ZODIAC_SYMBOLS[signIndex],
@@ -2335,7 +2384,6 @@ function generateTransitCalendar(birthDate, startYear, durationYears, natalPlane
                     houseDesc: houseInfo.desc
                 };
             });
-
             
 
 
@@ -2705,6 +2753,11 @@ ${textarea.value}
         alert('コピーに失敗しました。ブラウザの権限を確認してください。');
     });
 }
+
+// ページ読み込み時に初期値で自動計算を実行
+window.addEventListener('DOMContentLoaded', () => {
+    calculateAstrology();
+});
 
 </script>
 </body>
