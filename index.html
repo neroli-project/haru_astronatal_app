@@ -107,7 +107,7 @@
 
                     <div>
                         <label class="block text-slate-300 font-medium mb-1">出生地（都道府県/都市）</label>
-                        <select id="input-pob" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500">
+                        <select id="input-pob" onchange="calculateAstrology()" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-purple-500">
                             <option value="Tokyo">東京 (Tokyo)</option>
                             <option value="Osaka">大阪 (Osaka)</option>
                             <option value="Tottori" selected>鳥取 (Tottori)</option>
@@ -269,6 +269,17 @@
     <script>
         const ZODIAC_NAMES = ["牡羊座", "牡牛座", "双子座", "蟹座", "獅子座", "乙女座", "天秤座", "蠍座", "射手座", "山羊座", "水瓶座", "魚座"];
         const ZODIAC_SYMBOLS = ["♈", "♉", "♊", "♋", "♌", "♍", "♎", "♏", "♐", "♑", "♒", "♓"];
+
+        // 出生地の緯度・経度データ（ハウス計算用）
+        const CITY_COORDS = {
+            'Tokyo': { lat: 35.6762, lon: 139.6503 },
+            'Osaka': { lat: 34.6937, lon: 135.5023 },
+            'Tottori': { lat: 35.5011, lon: 134.2351 },
+            'Okayama': { lat: 34.6551, lon: 133.9195 },
+            'Fukuoka': { lat: 33.5902, lon: 130.4017 },
+            'Sapporo': { lat: 43.0618, lon: 141.3545 },
+            'Nagoya': { lat: 35.1815, lon: 136.9066 }
+        };
 
         // Planet definitions
         const PLANET_DEFINITIONS = [
@@ -728,7 +739,8 @@
 
                 if (bodyName === 'Node') {
                     const days = (d.getTime() - new Date(2000, 0, 1, 12, 0, 0).getTime()) / (1000 * 60 * 60 * 24);
-                    let nodeDeg = (125.04452 - 0.0529538083 * days) % 360;
+                    // 他のホロスコープアプリとの整合性のため -1度 補正
+                    let nodeDeg = (125.04452 - 0.0529538083 * days - 1.0) % 360;
                     return nodeDeg < 0 ? nodeDeg + 360 : nodeDeg;
                 }
                 if (bodyName === 'SouthNode') {
@@ -750,6 +762,76 @@
                 console.error('Calculation error for ' + bodyName, err);
                 return 0;
             }
+        }
+
+        // プラシーダス・ハウスカスプ算出関数（出生日時・出生地から1〜12ハウス境界を計算）
+        function calculateHouseCusps(dateObj, latDeg, lonDeg) {
+            if (typeof Astronomy === 'undefined' || !dateObj) return null;
+            try {
+                const time = Astronomy.MakeTime(dateObj);
+                // グリニッジ恒星時 (時間単位) -> 地方恒星時 (度数)
+                const gmstHours = Astronomy.SiderealTime(time);
+                const lstDeg = ((gmstHours * 15.0 + lonDeg) % 360 + 360) % 360;
+                const ramc = lstDeg * Math.PI / 180;
+                const eps = 23.4392911 * Math.PI / 180;
+                const phi = latDeg * Math.PI / 180;
+
+                // MC (第10ハウスカスプ)
+                let mc = Math.atan2(Math.sin(ramc), Math.cos(ramc) * Math.cos(eps)) * 180 / Math.PI;
+                mc = (mc % 360 + 360) % 360;
+
+                // ASC (第1ハウスカスプ)
+                let asc = Math.atan2(Math.cos(ramc), -(Math.sin(ramc) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps))) * 180 / Math.PI;
+                asc = (asc % 360 + 360) % 360;
+
+                const cusps = new Array(13).fill(0);
+                cusps[1] = asc;
+                cusps[10] = mc;
+                cusps[4] = (mc + 180) % 360;
+                cusps[7] = (asc + 180) % 360;
+
+                // プラシーダス中間ハウス補間 (11, 12, 2, 3)
+                function placidusCusp(isDay, f) {
+                    let ra = isDay ? (ramc + f * Math.PI / 2) : (ramc + Math.PI - f * Math.PI / 2);
+                    for (let iter = 0; iter < 15; iter++) {
+                        const decl = Math.asin(Math.sin(eps) * Math.sin(Math.atan2(Math.sin(ra), Math.cos(ra) * Math.cos(eps))));
+                        let ad = Math.asin(Math.max(-0.9999, Math.min(0.9999, Math.tan(phi) * Math.tan(decl))));
+                        ra = isDay ? (ramc + f * (Math.PI / 2 + ad)) : (ramc + Math.PI - f * (Math.PI / 2 - ad));
+                    }
+                    let lon = Math.atan2(Math.sin(ra), Math.cos(ra) * Math.cos(eps)) * 180 / Math.PI;
+                    return (lon % 360 + 360) % 360;
+                }
+
+                cusps[11] = placidusCusp(true, 1 / 3);
+                cusps[12] = placidusCusp(true, 2 / 3);
+                cusps[2]  = placidusCusp(false, 2 / 3);
+                cusps[3]  = placidusCusp(false, 1 / 3);
+
+                cusps[5] = (cusps[11] + 180) % 360;
+                cusps[6] = (cusps[12] + 180) % 360;
+                cusps[8] = (cusps[2] + 180) % 360;
+                cusps[9] = (cusps[3] + 180) % 360;
+
+                return cusps;
+            } catch (e) {
+                console.error('House calculation error', e);
+                return null;
+            }
+        }
+
+        // 天体の黄道経度から該当ハウス番号(1〜12)を取得
+        function getPlanetHouse(planetDeg, cusps) {
+            if (!cusps) return null;
+            for (let h = 1; h <= 12; h++) {
+                const start = cusps[h];
+                const end = cusps[h === 12 ? 1 : h + 1];
+                if (start < end) {
+                    if (planetDeg >= start && planetDeg < end) return h;
+                } else {
+                    if (planetDeg >= start || planetDeg < end) return h;
+                }
+            }
+            return 1;
         }
 
         /* ----------------------------------------------------
@@ -882,6 +964,7 @@
                                     tSign: `${ZODIAC_SYMBOLS[tSignIdx]} ${ZODIAC_NAMES[tSignIdx]} ${tDegMin}`,
                                     tSabian: getSabianSymbol(tSignIdx, tDeg),
                                     nLabel: `N${rc.label}`,
+                                    nHouse: natalTarget.house,
                                     nSign: `${natalTarget.symbol} ${natalTarget.sign} ${natalTarget.degMin}`,
                                     nSabian: natalTarget.sabian,
                                     desc: rc.desc
@@ -945,6 +1028,7 @@
                                             tSign: `${ZODIAC_SYMBOLS[tSignIdx]} ${ZODIAC_NAMES[tSignIdx]} ${tDegMin}`,
                                             tSabian: tSabian,
                                             nLabel: `N${np.name}`,
+                                            nHouse: np.house,
                                             nSign: `${np.symbol} ${np.sign} ${np.degMin}`,
                                             nSabian: np.sabian,
                                             desc: descText
@@ -1015,6 +1099,7 @@
             state.dob = document.getElementById('input-dob')?.value || '1976-03-11';
             state.tob = document.getElementById('input-tob')?.value || '00:50';
             state.timeUnknown = document.getElementById('input-time-unknown')?.checked || false;
+            state.pob = document.getElementById('input-pob')?.value || 'Tottori';
             state.startYear = parseInt(document.getElementById('input-start-year')?.value) || 2027;
             state.durationYears = parseInt(document.getElementById('input-duration-years')?.value) || 5;
             state.activeYear = state.startYear;
@@ -1025,6 +1110,10 @@
             // 日本標準時 (JST) として安全にDateオブジェクトを作成
             const birthDate = new Date(year, month - 1, day, hour, minute, 0);
 
+            // 出生時間が判明している場合のみハウスカスプを計算
+            const coords = CITY_COORDS[state.pob] || CITY_COORDS['Tottori'];
+            const houseCusps = state.timeUnknown ? null : calculateHouseCusps(birthDate, coords.lat, coords.lon);
+
             // ネイタル12天体計算
             state.natalData = PLANET_DEFINITIONS.map((def) => {
                 const totalDeg = getBodyLongitude(def.body, birthDate);
@@ -1032,6 +1121,7 @@
                 const signDegree = totalDeg % 30;
                 const degMin = `${Math.floor(signDegree)}°${Math.floor((signDegree % 1) * 60).toString().padStart(2, '0')}'`;
                 const sabian = getSabianSymbol(signIndex, signDegree);
+                const house = state.timeUnknown ? null : getPlanetHouse(totalDeg, houseCusps);
 
                 return {
                     ...def,
@@ -1040,8 +1130,8 @@
                     totalDeg,
                     signDegree,
                     degMin,
-                    sabian,
-                    desc: `「${ZODIAC_NAMES[signIndex]}」のエネルギーが、あなたの${def.title}に強い影響を与えています。`
+                    house,
+                    sabian
                 };
             });
 
@@ -1085,6 +1175,7 @@
             state.natalData.forEach(p => {
                 const card = document.createElement('div');
                 card.className = "glass-card rounded-2xl p-5 border-purple-500/20 space-y-3";
+                const houseBadge = p.house ? `<span class="text-xs px-2 py-0.5 bg-indigo-950/90 text-indigo-300 rounded border border-indigo-500/40 font-semibold">第${p.house}ハウス</span>` : '';
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="flex items-center gap-2.5">
@@ -1093,9 +1184,10 @@
                             </div>
                             <div>
                                 <h3 class="font-bold text-white text-sm">${p.name} <span class="text-xs text-purple-300 font-normal">(${p.title})</span></h3>
-                                <div class="flex items-center gap-2 mt-0.5">
+                                <div class="flex flex-wrap items-center gap-2 mt-0.5">
                                     <span class="text-base text-pink-400 font-bold">${p.symbol} ${p.sign}</span>
                                     <span class="text-xs px-2 py-0.5 bg-slate-900 rounded text-slate-300 border border-slate-700/80 font-mono">${p.degMin}</span>
+                                    ${houseBadge}
                                 </div>
                             </div>
                         </div>
@@ -1106,8 +1198,6 @@
                         <p class="text-purple-200 font-bold">${p.sabian.title}</p>
                         <p class="text-slate-300 text-[11px] leading-relaxed mt-1">${p.sabian.meaning}</p>
                     </div>
-
-                    <p class="text-xs text-slate-300 leading-relaxed">${p.desc}</p>
                 `;
                 grid.appendChild(card);
             });
@@ -1150,6 +1240,7 @@
                         
                         let sabianHtml = '';
                         if (evt.tSabian && evt.nSabian) {
+                            const nHouseTag = evt.nHouse ? `<span class="text-[10px] px-1.5 py-0.2 bg-indigo-950/90 text-indigo-300 rounded border border-indigo-500/40 ml-1">第${evt.nHouse}H</span>` : '';
                             sabianHtml = `
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5 mt-2.5 pt-2.5 border-t border-slate-800/80 text-[11px]">
                                     <div class="bg-slate-950/60 p-2.5 rounded-lg border border-amber-500/20 space-y-1">
@@ -1162,7 +1253,7 @@
                                     </div>
                                     <div class="bg-slate-950/60 p-2.5 rounded-lg border border-purple-500/20 space-y-1">
                                         <div class="flex items-center justify-between text-purple-300 font-bold">
-                                            <span><i class="fa-solid fa-sparkles text-[10px] mr-1"></i>${evt.nLabel} (ネイタル)</span>
+                                            <span><i class="fa-solid fa-sparkles text-[10px] mr-1"></i>${evt.nLabel} (ネイタル)${nHouseTag}</span>
                                             <span>${evt.nSign}</span>
                                         </div>
                                         <p class="text-purple-100 font-semibold">${evt.nSabian.title}</p>
@@ -1245,9 +1336,9 @@
 
             text += `■ 1. あなたの本質を示す主要天体＆サビアンシンボル\n`;
             state.natalData.forEach(p => {
-                text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}\n`;
-                text += `  サビアン: ${p.sabian.title}\n`;
-                text += `  解説: ${p.desc}\n\n`;
+                const houseText = p.house ? ` [第${p.house}ハウス]` : '';
+                text += `・${p.name}（${p.title}）: ${p.symbol} ${p.sign} ${p.degMin}${houseText}\n`;
+                text += `  サビアン: ${p.sabian.title}\n\n`;
             });
 
             text += `■ 2. プログレス主要天体（${state.startYear}年・満${state.progressData[0]?.age || 0}歳時の内面周期）\n`;
