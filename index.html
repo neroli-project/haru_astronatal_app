@@ -815,65 +815,81 @@
                 const events = [];
 
                 // 1. 各年におけるジュピター・サターン・ノードリターン（回帰）判定
-                const midYearDate = new Date(year, 5, 15, 12, 0, 0);
-
-                // Jupiter Return Check
-                const natalJup = natalPlanets.find(p => p.body === 'Jupiter');
-                if (natalJup) {
-                    const transJupDeg = getBodyLongitude('Jupiter', midYearDate);
-                    const aspInfo = getAspectInfo(transJupDeg, natalJup.totalDeg);
-                    if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
-                        const tSignIdx = Math.floor(transJupDeg / 30) % 12;
-                        const tDeg = transJupDeg % 30;
-                        const peakStr = findExactPeakDate('Jupiter', natalJup.totalDeg, 0, midYearDate);
-                        events.push({
-                            month: '5月〜6月頃',
-                            peakDate: peakStr,
-                            durationNote: '前後 約1〜2ヶ月',
-                            title: 'ジュピター・リターン (木星回帰)',
-                            type: 'return',
-                            badge: '12年に一度の拡大期',
-                            badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-                            target: '木星',
-                            tLabel: 'T木星',
-                            tSign: `${ZODIAC_SYMBOLS[tSignIdx]} ${ZODIAC_NAMES[tSignIdx]} ${Math.floor(tDeg)}°`,
-                            tSabian: getSabianSymbol(tSignIdx, tDeg),
-                            nLabel: 'N木星',
-                            nSign: `${natalJup.symbol} ${natalJup.sign} ${natalJup.degMin}`,
-                            nSabian: natalJup.sabian,
-                            desc: '約12年に一度の大きな発展・拡大のタイミング。新しい挑戦や社会的飛躍のチャンスが訪れます。'
-                        });
+                // 年内（1月〜12月）をスキャンして、木星・土星・ノードの回帰（合：0°）を検出
+                const returnChecks = [
+                    {
+                        body: 'Jupiter',
+                        label: '木星',
+                        title: 'ジュピター・リターン (木星回帰)',
+                        badge: '約12年に一度の拡大期',
+                        badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+                        durationNote: '前後 約1〜2ヶ月',
+                        desc: '約12年に一度の大きな発展・拡大のタイミング。新しい挑戦や社会的飛躍のチャンスが訪れます。',
+                        orb: 5.0
+                    },
+                    {
+                        body: 'Saturn',
+                        label: '土星',
+                        title: 'サターン・リターン (土星回帰)',
+                        badge: '約29.5年に一度の人生の節目',
+                        badgeColor: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+                        durationNote: '前後 約2〜3ヶ月',
+                        desc: '約29.5年に一度訪れる重要な成人・責任・成熟の節目。これまでの歩みを総括し、新たな人生の基盤を固めます。',
+                        orb: 4.5
+                    },
+                    {
+                        body: 'Node',
+                        label: 'ドラゴンヘッド',
+                        title: 'ノード・リターン (ドラゴンヘッド回帰)',
+                        badge: '約18.5年に一度の運命転機',
+                        badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+                        durationNote: '前後 約2〜3ヶ月',
+                        desc: '魂の目的に目覚める約18.5年に一度の節目。キーパーソンとの出会いや新たな使命が始まります。',
+                        orb: 4.0
                     }
-                }
+                ];
 
-                // Node Return Check
-                const natalNode = natalPlanets.find(p => p.body === 'Node');
-                if (natalNode) {
-                    const transNodeDeg = getBodyLongitude('Node', midYearDate);
-                    const aspInfo = getAspectInfo(transNodeDeg, natalNode.totalDeg);
-                    if (aspInfo.hasAspect && aspInfo.aspect.type === 'conjunction') {
-                        const tSignIdx = Math.floor(transNodeDeg / 30) % 12;
-                        const tDeg = transNodeDeg % 30;
-                        const peakStr = findExactPeakDate('Node', natalNode.totalDeg, 0, midYearDate);
-                        events.push({
-                            month: '8月〜9月頃',
-                            peakDate: peakStr,
-                            durationNote: '前後 約2〜3ヶ月',
-                            title: 'ノード・リターン (ドラゴンヘッド回帰)',
-                            type: 'return',
-                            badge: '18.5年に一度の運命転機',
-                            badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
-                            target: 'ドラゴンヘッド',
-                            tLabel: 'Tドラゴンヘッド',
-                            tSign: `${ZODIAC_SYMBOLS[tSignIdx]} ${ZODIAC_NAMES[tSignIdx]} ${Math.floor(tDeg)}°`,
-                            tSabian: getSabianSymbol(tSignIdx, tDeg),
-                            nLabel: 'Nドラゴンヘッド',
-                            nSign: `${natalNode.symbol} ${natalNode.sign} ${natalNode.degMin}`,
-                            nSabian: natalNode.sabian,
-                            desc: '魂の目的に目覚める約18.5年に一度の節目。キーパーソンとの出会いや新たな使命が始まります。'
-                        });
+                returnChecks.forEach(rc => {
+                    const natalTarget = natalPlanets.find(p => p.body === rc.body);
+                    if (!natalTarget) return;
+
+                    for (let m = 0; m < 12; m++) {
+                        const checkDate = new Date(year, m, 15, 12, 0, 0);
+                        const transDeg = getBodyLongitude(rc.body, checkDate);
+
+                        let diff = Math.abs(transDeg - natalTarget.totalDeg) % 360;
+                        if (diff > 180) diff = 360 - diff;
+
+                        if (diff <= rc.orb) {
+                            const alreadyAdded = events.some(e => e.type === 'return' && e.returnBody === rc.body);
+                            if (!alreadyAdded) {
+                                const tSignIdx = Math.floor(transDeg / 30) % 12;
+                                const tDeg = transDeg % 30;
+                                const tDegMin = `${Math.floor(tDeg)}°${Math.floor((tDeg % 1) * 60).toString().padStart(2, '0')}'`;
+                                const peakStr = findExactPeakDate(rc.body, natalTarget.totalDeg, 0, checkDate);
+
+                                events.push({
+                                    month: `${m + 1}月頃`,
+                                    peakDate: peakStr,
+                                    durationNote: rc.durationNote,
+                                    title: rc.title,
+                                    type: 'return',
+                                    returnBody: rc.body,
+                                    badge: rc.badge,
+                                    badgeColor: rc.badgeColor,
+                                    target: `${rc.label}（N）`,
+                                    tLabel: `T${rc.label}`,
+                                    tSign: `${ZODIAC_SYMBOLS[tSignIdx]} ${ZODIAC_NAMES[tSignIdx]} ${tDegMin}`,
+                                    tSabian: getSabianSymbol(tSignIdx, tDeg),
+                                    nLabel: `N${rc.label}`,
+                                    nSign: `${natalTarget.symbol} ${natalTarget.sign} ${natalTarget.degMin}`,
+                                    nSabian: natalTarget.sabian,
+                                    desc: rc.desc
+                                });
+                            }
+                        }
                     }
-                }
+                });
 
                 // 2. 年間12ヶ月の各月（毎月初日）でのトランジット × ネイタルのアスペクト自動検出
                 for (let m = 0; m < 12; m++) {
